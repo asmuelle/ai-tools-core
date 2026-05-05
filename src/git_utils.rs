@@ -22,21 +22,20 @@ pub fn changed_files(root: &Path, since: &str) -> Option<Vec<PathBuf>> {
         .map(PathBuf::from)
         .collect();
 
-    // Add untracked .rs files too
+    // Add untracked .rs files too.
     if let Ok(untracked) = Command::new("git")
         .arg("-C")
         .arg(root)
         .args(["ls-files", "--others", "--exclude-standard"])
         .output()
+        && untracked.status.success()
     {
-        if untracked.status.success() {
-            let untracked_text = String::from_utf8_lossy(&untracked.stdout);
-            for line in untracked_text.lines() {
-                if line.ends_with(".rs") {
-                    let p = PathBuf::from(line);
-                    if !files.contains(&p) {
-                        files.push(p);
-                    }
+        let untracked_text = String::from_utf8_lossy(&untracked.stdout);
+        for line in untracked_text.lines() {
+            if line.ends_with(".rs") {
+                let p = PathBuf::from(line);
+                if !files.contains(&p) {
+                    files.push(p);
                 }
             }
         }
@@ -84,7 +83,7 @@ pub fn blame(root: &Path, file: &Path, line: u32) -> Option<crate::finding::Attr
 fn parse_blame_porcelain(text: &str) -> Option<crate::finding::Attribution> {
     let first_line = text.lines().next()?;
     let parts: Vec<&str> = first_line.split_whitespace().collect();
-    if parts.len() < 1 {
+    if parts.is_empty() {
         return None;
     }
     let commit = parts[0].chars().take(7).collect::<String>();

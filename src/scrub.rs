@@ -5,12 +5,16 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use thiserror::Error;
 
+/// Error returned by scrubber configuration and logging operations.
 #[derive(Debug, Error)]
 pub enum ScrubError {
+    /// Filesystem I/O failed.
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
+    /// YAML configuration parsing failed.
     #[error("yaml: {0}")]
     Yaml(#[from] serde_yaml::Error),
+    /// Regex compilation failed.
     #[error("regex: {0}")]
     Regex(#[from] regex::Error),
 }
@@ -18,47 +22,66 @@ pub enum ScrubError {
 /// Configuration for the secret scrubbing pipeline.
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct ScrubConfig {
+    /// Configuration schema version.
     pub version: u32,
+    /// Regex-based secret patterns.
     #[serde(default)]
     pub patterns: Vec<ScrubPattern>,
+    /// Path-based redaction settings.
     #[serde(default)]
     pub paths: ScrubPathConfig,
 }
 
+/// Path-level redaction configuration.
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct ScrubPathConfig {
+    /// Glob patterns whose matching files should be redacted as a whole.
     #[serde(default)]
     pub redact_whole: Vec<String>,
 }
 
+/// A single regex-based secret detection rule.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ScrubPattern {
+    /// Stable rule identifier.
     pub id: String,
+    /// Regex pattern used to find the secret.
     pub regex: String,
+    /// Secret category, such as `aws` or `github`.
     pub category: String,
+    /// Severity label for this secret class.
     pub severity: String,
 }
 
 /// Report of what was scrubbed.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ScrubReport {
+    /// Individual redaction records.
     pub redactions: Vec<RedactionRecord>,
+    /// Whether scrubbing was enabled for the operation.
     pub enabled: bool,
 }
 
+/// Metadata for one redacted secret.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedactionRecord {
+    /// Rule that produced the redaction.
     pub rule_id: String,
+    /// Redacted secret category.
     pub category: String,
+    /// Redacted secret severity.
     pub severity: String,
+    /// First four hex characters of the secret hash.
     pub hash4: String,
 }
 
 impl ScrubReport {
+    /// Return true when no redactions were recorded.
     pub fn is_empty(&self) -> bool {
         self.redactions.is_empty()
     }
 
+    /// Return a short human-readable summary of redactions.
     pub fn summary(&self) -> String {
         if self.redactions.is_empty() {
             "no secrets detected".to_string()
@@ -72,7 +95,11 @@ impl ScrubReport {
                 .iter()
                 .map(|(cat, count)| format!("{count} {cat}"))
                 .collect();
-            format!("{} redaction(s): {}", self.redactions.len(), parts.join(", "))
+            format!(
+                "{} redaction(s): {}",
+                self.redactions.len(),
+                parts.join(", ")
+            )
         }
     }
 }
@@ -86,6 +113,7 @@ pub struct Scrubber {
 }
 
 impl Scrubber {
+    /// Create a disabled scrubber that passes input through unchanged.
     pub fn empty() -> Self {
         Self {
             pattern_set: RegexSet::empty(),
@@ -95,6 +123,7 @@ impl Scrubber {
         }
     }
 
+    /// Create a scrubber using workspace config or built-in defaults.
     pub fn with_workspace(root: &Path) -> Result<Self, ScrubError> {
         let config_path = root.join(".cargo-context").join("scrub.yaml");
         if !config_path.exists() {
@@ -105,6 +134,7 @@ impl Scrubber {
         Self::from_config(config)
     }
 
+    /// Create a scrubber using built-in secret patterns and path rules.
     pub fn with_builtins() -> Self {
         Self::from_config(Self::builtin_config()).unwrap_or_else(|_| Self::empty())
     }
@@ -145,11 +175,7 @@ impl Scrubber {
                 },
             ],
             paths: ScrubPathConfig {
-                redact_whole: vec![
-                    "**/.env".into(),
-                    "**/*.pem".into(),
-                    "**/*.key".into(),
-                ],
+                redact_whole: vec!["**/.env".into(), "**/*.pem".into(), "**/*.key".into()],
             },
         }
     }
@@ -171,19 +197,25 @@ impl Scrubber {
         })
     }
 
+    /// Return true when this scrubber actively scans input.
     pub fn is_enabled(&self) -> bool {
         self.enabled
     }
 
+    /// Return true when a path matches a full-file redaction glob.
     pub fn is_path_redacted(&self, path: &Path) -> bool {
-        self.redact_paths.iter().any(|g| g.compile_matcher().is_match(path))
+        self.redact_paths
+            .iter()
+            .any(|g| g.compile_matcher().is_match(path))
     }
 
+    /// Scrub secrets from input and return the scrubbed text.
     pub fn scrub(&self, input: &str) -> String {
         let (scrubbed, _) = self.scrub_with_report(input);
         scrubbed
     }
 
+    /// Scrub secrets from input and return both text and redaction report.
     pub fn scrub_with_report(&self, input: &str) -> (String, ScrubReport) {
         if !self.enabled {
             return (input.to_string(), ScrubReport::default());
@@ -208,15 +240,13 @@ impl Scrubber {
                 new_matches.push((m.start(), m.end()));
             }
             // Apply replacements from end to start to preserve indices
-            new_matches.sort_by(|a, b| b.0.cmp(&a.0));
+            new_matches.sort_by_key(|m| std::cmp::Reverse(m.0));
             for (start, end) in new_matches {
                 let matched = &result[start..end];
                 let hash = format!("{:x}", Sha256::digest(matched.as_bytes()));
                 let hash4 = &hash[..4];
-                let replacement = format!(
-                    "<REDACTED:{}:{}:{}>",
-                    &pattern.category, &pattern.id, hash4
-                );
+                let replacement =
+                    format!("<REDACTED:{}:{}:{}>", &pattern.category, &pattern.id, hash4);
                 result.replace_range(start..end, &replacement);
                 report.redactions.push(RedactionRecord {
                     rule_id: pattern.id.clone(),
@@ -230,6 +260,7 @@ impl Scrubber {
         (result, report)
     }
 
+    /// Log a short diagnostic for recorded redactions.
     pub fn log_redactions(&self, report: &ScrubReport) -> Result<(), ScrubError> {
         if report.redactions.is_empty() {
             return Ok(());
@@ -259,7 +290,8 @@ mod tests {
     #[test]
     fn detects_openai_key() {
         let scrubber = Scrubber::with_builtins();
-        let (result, report) = scrubber.scrub_with_report("apikey=sk-proj1234567890abcdefghijklmnopqrstuvwxyz");
+        let (result, report) =
+            scrubber.scrub_with_report("apikey=sk-proj1234567890abcdefghijklmnopqrstuvwxyz");
         assert!(result.contains("<REDACTED:openai:openai_key:"));
         assert!(!report.redactions.is_empty());
     }

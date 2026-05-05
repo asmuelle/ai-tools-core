@@ -1,26 +1,35 @@
+use serde::Deserialize;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use serde::Deserialize;
 
 /// Parsed cargo metadata for workspace analysis.
 #[derive(Debug, Clone, Deserialize)]
 pub struct CargoMetadata {
+    /// Root directory of the Cargo workspace.
     pub workspace_root: PathBuf,
+    /// Packages reported by `cargo metadata`.
     #[serde(default)]
     pub packages: Vec<Package>,
 }
 
+/// Package entry from Cargo metadata.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Package {
+    /// Package name.
     pub name: String,
+    /// Absolute path to the package manifest.
     pub manifest_path: PathBuf,
+    /// Targets declared by the package.
     #[serde(default)]
     pub targets: Vec<Target>,
 }
 
+/// Build target entry from Cargo metadata.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Target {
+    /// Target name.
     pub name: String,
+    /// Cargo target kinds, such as `lib`, `bin`, or `test`.
     #[serde(default)]
     pub kind: Vec<String>,
 }
@@ -53,10 +62,10 @@ pub fn workspace_root(start: &Path) -> Option<PathBuf> {
     loop {
         if current.join("Cargo.toml").exists() {
             // Check if it has a [workspace] section
-            if let Ok(contents) = std::fs::read_to_string(current.join("Cargo.toml")) {
-                if contents.contains("[workspace]") {
-                    return Some(current);
-                }
+            if let Ok(contents) = std::fs::read_to_string(current.join("Cargo.toml"))
+                && contents.contains("[workspace]")
+            {
+                return Some(current);
             }
             // Even if not a workspace root, return it as the package root
             return Some(current);

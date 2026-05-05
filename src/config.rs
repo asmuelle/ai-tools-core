@@ -4,26 +4,36 @@ use std::path::{Path, PathBuf};
 /// Unified project configuration file (`.cargo-vibe.toml`).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct VibeConfig {
+    /// Global defaults shared by all tools.
     #[serde(default)]
     pub vibe: VibeGlobalConfig,
+    /// `diff-risk` overrides.
     #[serde(default)]
     pub diff_risk: VibeToolConfig,
+    /// `cargo-impact` overrides.
     #[serde(default)]
     pub cargo_impact: VibeToolConfig,
+    /// `spec-drift` overrides.
     #[serde(default)]
     pub spec_drift: VibeToolConfig,
+    /// `cargo-context` overrides.
     #[serde(default)]
     pub cargo_context: VibeToolConfig,
 }
 
+/// Global `.cargo-vibe.toml` settings.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct VibeGlobalConfig {
+    /// Default token budget for context-producing tools.
     #[serde(default)]
     pub token_budget: Option<usize>,
+    /// Tokenizer identifier used for context budgeting.
     #[serde(default)]
     pub tokenizer: Option<String>,
+    /// Whether secret scrubbing is enabled by default.
     #[serde(default)]
     pub scrub: Option<bool>,
+    /// Default risk threshold.
     #[serde(default)]
     pub threshold: Option<f32>,
 }
@@ -31,10 +41,13 @@ pub struct VibeGlobalConfig {
 /// Per-tool configuration overrides.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct VibeToolConfig {
+    /// Whether the tool is enabled.
     #[serde(default)]
     pub enabled: Option<bool>,
+    /// Tool-specific threshold override.
     #[serde(default)]
     pub threshold: Option<f32>,
+    /// Extra CLI arguments passed to the tool.
     #[serde(default)]
     pub extra_args: Vec<String>,
 }

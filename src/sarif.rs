@@ -14,6 +14,7 @@ pub struct SarifRenderer {
 }
 
 impl SarifRenderer {
+    /// Create a renderer for a tool name and version.
     pub fn new(name: &str, version: &str) -> Self {
         Self {
             tool_name: name.to_string(),
@@ -22,11 +23,13 @@ impl SarifRenderer {
         }
     }
 
+    /// Attach the tool information URI included in the SARIF driver.
     pub fn with_info_uri(mut self, uri: &str) -> Self {
         self.tool_info_uri = uri.to_string();
         self
     }
 
+    /// Render findings as a pretty-printed SARIF JSON document.
     pub fn render(&self, findings: &[Finding]) -> String {
         let mut rules: BTreeMap<String, SarifRule> = BTreeMap::new();
         for f in findings {
@@ -48,10 +51,7 @@ impl SarifRenderer {
         for f in findings {
             let rule_id = f.rule.as_str().to_string();
             let mut partial_fingerprints = BTreeMap::new();
-            partial_fingerprints.insert(
-                "primaryLocationLineHash".to_string(),
-                f.id.clone(),
-            );
+            partial_fingerprints.insert("primaryLocationLineHash".to_string(), f.id.clone());
 
             results.push(SarifResult {
                 rule_id: Some(rule_id),
@@ -187,15 +187,17 @@ mod tests {
 
     #[test]
     fn renders_valid_sarif() {
-        let findings = vec![Finding::new(
-            RuleId::ApiContract,
-            Severity::High,
-            Confidence::Deterministic,
-            Location::new("src/lib.rs", 42),
-            "Public API changed",
-        )
-        .with_id("f-001")
-        .with_tool("diff-risk")];
+        let findings = vec![
+            Finding::new(
+                RuleId::ApiContract,
+                Severity::High,
+                Confidence::Deterministic,
+                Location::new("src/lib.rs", 42),
+                "Public API changed",
+            )
+            .with_id("f-001")
+            .with_tool("diff-risk"),
+        ];
 
         let renderer = SarifRenderer::new("diff-risk", "0.2.0");
         let output = renderer.render(&findings);

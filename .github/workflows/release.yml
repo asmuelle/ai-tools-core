@@ -29,7 +29,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.95"
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all -- --check
       - run: cargo clippy --all-targets --all-features --locked -- -D warnings
@@ -46,13 +48,13 @@ jobs:
           fi
 
   msrv:
-    name: MSRV (1.82)
+    name: MSRV (1.95)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.82"
+          toolchain: "1.95"
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --all-features --locked
 
@@ -61,7 +63,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.95"
       - uses: Swatinem/rust-cache@v2
       - run: cargo doc --no-deps --all-features --locked
       - uses: actions/upload-pages-artifact@v3
@@ -76,7 +80,9 @@ jobs:
     environment: crates-io
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.95"
       - uses: Swatinem/rust-cache@v2
       - name: Publish ai-tools-core
         env:
