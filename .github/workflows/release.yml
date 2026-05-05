@@ -94,6 +94,12 @@ jobs:
             | jq -er '.packages[] | select(.name=="ai-tools-core") | .version')
           echo "::group::publish ai-tools-core v$version"
 
+          if [[ -z "${CARGO_REGISTRY_TOKEN:-}" ]]; then
+            echo "::notice::CARGO_REGISTRY_TOKEN not set — skipping crates.io publish."
+            echo "::endgroup::"
+            exit 0
+          fi
+
           url="https://crates.io/api/v1/crates/ai-tools-core/$version"
           code=$(curl -sS -o /dev/null -w '%{http_code}' \
             -A "ai-tools-core-ci (+https://github.com/${GITHUB_REPOSITORY})" \
