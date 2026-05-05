@@ -1,5 +1,7 @@
 # ai-tools-core
 
+[![CI](https://github.com/asmuelle/ai-tools-core/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/asmuelle/ai-tools-core/actions/workflows/ci.yml)
+
 Shared foundation crate for the Rust AI vibe coding toolchain. Provides unified types, utilities, and configuration shared by `cargo-context`, `diff-risk`, `cargo-impact`, `spec-drift`, and `cargo-vibe`.
 
 ## Why
