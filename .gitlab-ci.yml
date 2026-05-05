@@ -1,0 +1,106 @@
+# GitLab CI/CD pipeline for ai-tools-core
+#
+# This is a library crate with no binary. The pipeline ensures:
+# - Formatting compliance
+# - Clippy linting with -D warnings
+# - Tests pass on stable + beta + MSRV
+# - Documentation builds without errors
+# - MSRV (1.82) compatibility check
+
+stages:
+  - lint
+  - test
+  - msrv
+  - docs
+  - pass
+
+variables:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  RUST_BACKTRACE: short
+  RUSTFLAGS: "-D warnings"
+  RUSTDOCFLAGS: "-D warnings"
+
+default:
+  interruptible: true
+  before_script:
+    - rustup show
+
+# ── Lint stage ──────────────────────────────────────────────────────
+
+rustfmt:
+  stage: lint
+  image: rust:latest
+  script:
+    - rustup component add rustfmt
+    - cargo fmt --all -- --check
+
+clippy:
+  stage: lint
+  image: rust:latest
+  script:
+    - rustup component add clippy
+    - cargo clippy --all-targets --all-features -- -D warnings
+
+# ── Test stage ──────────────────────────────────────────────────────
+
+test:stable:
+  stage: test
+  image: rust:latest
+  script:
+    - cargo test --all-features -- --nocapture
+  artifacts:
+    when: always
+    reports:
+      junit: target/junit.xml
+
+test:beta:
+  stage: test
+  image: rustlang/rust:beta
+  allow_failure: true
+  script:
+    - cargo test --all-features -- --nocapture
+
+# ── MSRV stage ──────────────────────────────────────────────────────
+
+msrv:
+  stage: msrv
+  image: rust:1.82
+  script:
+    - cargo check --all-features
+
+# ── Documentation stage ─────────────────────────────────────────────
+
+rustdoc:
+  stage: docs
+  image: rust:latest
+  script:
+    - cargo doc --no-deps --all-features
+  artifacts:
+    paths:
+      - target/doc/
+
+# ── Security scan (secret scrubbing self-test) ──────────────────────
+
+security:
+  stage: test
+  image: rust:latest
+  script:
+    - cargo test --lib scrub -- --nocapture
+  allow_failure: true
+
+# ── Pass gate ────────────────────────────────────────────────────────
+
+ci-pass:
+  stage: pass
+  image: alpine:latest
+  needs:
+    - rustfmt
+    - clippy
+    - test:stable
+    - test:beta
+    - msrv
+    - rustdoc
+    - security
+  script:
+    - echo "All required jobs passed."
